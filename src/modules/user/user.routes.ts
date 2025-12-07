@@ -6,11 +6,13 @@ const router = Router();
 
 router.post("/auth/signup", userControllers.createUser);
 router.get("/users", userControllers.getAllUser);
-// router.put(
-//   "/users/:userId",
-// //   auth("admin", "customer"),
-//   userControllers.updateUser
-// );
+router.put(
+  "/users/:userId",
+//   auth("admin", "customer"),
+  userControllers.updateUser
+);
+
+router.delete('/users/:userId', userControllers.deleteUser)
 // router.delete('/users/:userId', auth('admin'), userControllers.deleteUser)
 
 export const userRoutes = router;
