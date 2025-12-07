@@ -4,10 +4,18 @@ import auth from "../../middleware/auth";
 
 const router = Router();
 
-router.post("/vehicles", auth('admin'), vehicleControllers.createVehicle);
-router.get("/vehicles", vehicleControllers.getAllVehicles);
-router.get("/vehicles/:vehicleId", vehicleControllers.getVehicleById);
-router.put("/vehicles/:vehicleId", auth('admin'), vehicleControllers.updateVehicle);
-router.delete("/vehicles/:vehicleId", auth('admin'), vehicleControllers.deleteVehicle);
+router.post("/vehicles", auth("admin"), vehicleControllers.createVehicle);
+router.get("/vehicles", vehicleControllers.getAllVehicle);
+router.get("/vehicles/:vehicleId", vehicleControllers.getSingleVehicle);
+router.put(
+  "/vehicles/:vehicleId",
+  auth("admin"),
+  vehicleControllers.updateSingleVehicle
+);
+router.delete(
+  "/vehicles/:vehicleId",
+  auth("admin"),
+  vehicleControllers.deleteSingleVehicle
+);
 
 export const vehicleRoutes = router;

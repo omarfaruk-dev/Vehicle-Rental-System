@@ -1,19 +1,51 @@
-import app from "./app";
-import config from "./config";
+import express, { Request, Response } from "express";
 import initDB from "./config/db";
+import logger from "./middleware/logger";
+import config from "./config";
+import { userRoutes } from "./modules/user/user.routes";
+import { authRoutes } from "./modules/auth/auth.routes";
+import { vehicleRoutes } from "./modules/vehicle/vehicle.routes";
+import { bookingRoutes } from "./modules/booking/booking.router";
 
-const main = async () => {
-    try {
-        await initDB();
-        app.listen(config.port, () => {
-            console.log(`Server is running on port ${config.port}
-                url: http://localhost:${config.port}   
-            `)
-        })
-    } catch (err) {
-        console.error('Failed to connect to database', err);
-        process.exit(1);
-    }
-}
+const app = express();
+const port = config.port;
 
-main();
+// parser (MiddleWare)
+app.use(express.json());
+
+// initializing DB
+initDB();
+// root
+app.get("/", logger, (req: Request, res: Response) => {
+  res.send(200).json({
+    success: true,
+    message: "Server is running...",
+  }, );
+});
+
+// CRUD OPERATION API's
+// USERS
+app.use("/api/v1", userRoutes);
+
+// AUTH
+app.use("/api/v1", authRoutes);
+
+// VEHICLE
+app.use("/api/v1", vehicleRoutes);
+
+// BOOKINGS
+app.use("/api/v1", bookingRoutes);
+
+// not found error handle
+app.use((req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    message: "Routes Not Found",
+    path: req.path,
+  });
+});
+
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+// export default app;

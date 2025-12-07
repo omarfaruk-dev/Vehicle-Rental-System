@@ -1,6 +1,4 @@
-# Dependencies
 node_modules
-
-# TypeScript
-*.tsbuildinfo
-.env
+.env*
+dist
+.vercel

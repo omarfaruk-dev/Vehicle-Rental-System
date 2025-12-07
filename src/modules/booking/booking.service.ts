@@ -1,149 +1,167 @@
 import { pool } from "../../config/db";
 
-const createBooking = async (payload: any) => {
-    const { customer_id, vehicle_id, rent_start_date, rent_end_date } = payload;
+const addBooking = async (payload: any) => {
+  const { customer_id, vehicle_id, rent_start_date, rent_end_date } = payload;
 
-    // 1. Check vehicle availability
-    const vehicleResult = await pool.query(`SELECT * FROM vehicles WHERE id=$1`, [vehicle_id]);
-    if (vehicleResult.rows.length === 0) throw new Error("Vehicle not found");
-    const vehicle = vehicleResult.rows[0];
+  // Get vehicle data
+  const vehicle = await pool.query(
+    `SELECT vehicle_name, daily_rent_price, availability_status FROM vehicles WHERE id = $1`,
+    [vehicle_id]
+  );
 
-    if (vehicle.availability_status !== 'available') throw new Error("Vehicle is not available");
+  if (vehicle.rows.length === 0) throw new Error("Vehicle not found");
 
-    // 2. Calculate total price
-    const dailyPrice = parseFloat(vehicle.daily_rent_price);
-    const start = new Date(rent_start_date);
-    const end = new Date(rent_end_date);
-    const duration = (end.getTime() - start.getTime()) / (1000 * 3600 * 24); // Difference in days
+  const { vehicle_name, daily_rent_price, availability_status } = vehicle.rows[0];
 
-    if (duration <= 0) throw new Error("End date must be after start date");
+  if (availability_status !== "available") {
+      throw new Error("Vehicle is not available for booking");
+  }
 
-    const total_price = (duration * dailyPrice).toFixed(2);
+  // Calculate total price
+  const start = new Date(rent_start_date);
+  const end = new Date(rent_end_date);
+  const days = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+  const total_price = days * daily_rent_price;
 
-    // 3. Create Booking
-    const result = await pool.query(
-        `INSERT INTO bookings(customer_id, vehicle_id, rent_start_date, rent_end_date, total_price, status) 
-         VALUES($1, $2, $3, $4, $5, 'active') RETURNING *`,
-        [customer_id, vehicle_id, rent_start_date, rent_end_date, total_price]
-    );
+  // Insert booking
+  const result = await pool.query(
+    `INSERT INTO bookings(customer_id, vehicle_id, rent_start_date, rent_end_date, total_price, status)
+     VALUES($1, $2, $3, $4, $5, 'active')
+     RETURNING *`,
+    [customer_id, vehicle_id, rent_start_date, rent_end_date, total_price]
+  );
 
-    // 4. Update Vehicle Status
-    await pool.query(`UPDATE vehicles SET availability_status='booked' WHERE id=$1`, [vehicle_id]);
+  // Update vehicle status
+  await pool.query(
+      `UPDATE vehicles SET availability_status = 'booked' WHERE id = $1`,
+      [vehicle_id]
+  );
 
-    const booking = result.rows[0];
-
-    // Format Response as per API Spec
-    return {
-        ...booking,
-        vehicle: {
-            vehicle_name: vehicle.vehicle_name,
-            daily_rent_price: vehicle.daily_rent_price
-        }
-    };
+  return {
+    booking: result.rows[0],
+    vehicle: {
+      vehicle_name,
+      daily_rent_price,
+    },
+  };
 };
 
-const getAllBookings = async (user_id: string, role: string) => {
-    let query = `
-        SELECT 
+const getBookings = async (user: any) => {
+  if (user.role === "admin") {
+      const result = await pool.query(`
+          SELECT 
             b.*, 
-            v.vehicle_name, v.registration_number, v.type as vehicle_type, v.daily_rent_price,
-            u.name as customer_name, u.email as customer_email, u.phone as customer_phone
+            json_build_object(
+                'vehicle_name', v.vehicle_name, 
+                'registration_number', v.registration_number,
+                'daily_rent_price', v.daily_rent_price,
+                'type', v.type
+            ) as vehicle,
+            json_build_object(
+                'name', u.name, 
+                'email', u.email
+            ) as customer
         FROM bookings b
         JOIN vehicles v ON b.vehicle_id = v.id
         JOIN users u ON b.customer_id = u.id
-    `;
+      `);
+      return result;
+  }
+  
+  const result = await pool.query(`
+      SELECT 
+        b.*, 
+        json_build_object(
+            'vehicle_name', v.vehicle_name, 
+            'registration_number', v.registration_number,
+            'daily_rent_price', v.daily_rent_price,
+            'type', v.type
+        ) as vehicle,
+        json_build_object(
+            'name', u.name, 
+            'email', u.email
+        ) as customer
+    FROM bookings b
+    JOIN vehicles v ON b.vehicle_id = v.id
+    JOIN users u ON b.customer_id = u.id
+    WHERE b.customer_id = $1
+  `, [user.id]);
+  
+  return result;
+};
 
-    let params: any[] = [];
+const updateBooking = async (bookingId: string, payload: any, user: any) => {
+    const { status } = payload;
+    
+    // Check if booking exists
+    const bookingRes = await pool.query(`SELECT * FROM bookings WHERE id = $1`, [bookingId]);
+    if (bookingRes.rows.length === 0) {
+      throw new Error("Booking not found");
+    }
+    const booking = bookingRes.rows[0];
 
-    if (role === 'customer') {
-        query += ` WHERE b.customer_id=$1`;
-        params.push(user_id);
+    // Logic for returning a vehicle (Admin)
+    if (status === "returned") {
+      if (user.role !== "admin") {
+        throw new Error("Only admin can mark bookings as returned");
+      }
+      
+      const updateRes = await pool.query(
+        `UPDATE bookings SET status = 'returned' WHERE id = $1 RETURNING *`,
+        [bookingId]
+      );
+      
+      await pool.query(
+        `UPDATE vehicles SET availability_status = 'available' WHERE id = $1`,
+        [booking.vehicle_id]
+      );
+      
+      // Fetch vehicle for response
+      const vehicleRes = await pool.query(`SELECT availability_status FROM vehicles WHERE id = $1`, [booking.vehicle_id]);
+
+      return {
+        ...updateRes.rows[0],
+        vehicle: vehicleRes.rows[0],
+      };
     }
 
-    const result = await pool.query(query, params);
+    // Logic for cancelling a booking (Customer)
+    if (status === "cancelled") {
+      // Check for customer ownership (using specific equality for potentially different types)
+      if (user.role === "customer" && Number(booking.customer_id) !== Number(user.id)) {
+         throw new Error("You are not authorized to cancel this booking");
+      }
 
-    // Map to nested structure
-    return result.rows.map(row => {
-        const {
-            vehicle_name, registration_number, vehicle_type, daily_rent_price,
-            customer_name, customer_email, customer_phone,
-            ...bookingData
-        } = row;
+      if (user.role === "customer") {
+          const startDate = new Date(booking.rent_start_date);
+          const now = new Date();
+          // Assuming strict time comparison.
+          if (now.getTime() >= startDate.getTime()) {
+              throw new Error("Cannot cancel booking after it has started");
+          }
+      }
 
-        const response: any = {
-            ...bookingData,
-            vehicle: {
-                vehicle_name,
-                registration_number,
-                type: vehicle_type,
-                daily_rent_price // Optional, included in some specs
-            }
-        };
-
-        // Admin sees customer info
-        if (role === 'admin') {
-            response.customer = {
-                name: customer_name,
-                email: customer_email,
-                phone: customer_phone
-            };
-        }
-
-        return response;
-    });
-};
-
-const returnBooking = async (bookingId: string) => {
-    // 1. Get booking to find vehicle_id
-    const bookingQuery = await pool.query(`SELECT * FROM bookings WHERE id=$1`, [bookingId]);
-    if (bookingQuery.rows.length === 0) throw new Error("Booking not found");
-
-    const { vehicle_id, status } = bookingQuery.rows[0];
-
-    // 2. Update Booking Status
-    const result = await pool.query(
-        `UPDATE bookings SET status='returned', updated_at=CURRENT_TIMESTAMP WHERE id=$1 RETURNING *`,
+      const updateRes = await pool.query(
+        `UPDATE bookings SET status = 'cancelled' WHERE id = $1 RETURNING *`,
         [bookingId]
-    );
+      );
 
-    // 3. Update Vehicle Status
-    await pool.query(`UPDATE vehicles SET availability_status='available' WHERE id=$1`, [vehicle_id]);
+      // If it was 'active', we should free up the vehicle.
+      if (booking.status === 'active') {
+          await pool.query(
+            `UPDATE vehicles SET availability_status = 'available' WHERE id = $1`,
+            [booking.vehicle_id]
+          );
+      }
 
-    // Format Response
-    return {
-        ...result.rows[0],
-        vehicle: {
-            availability_status: "available"
-        }
-    };
+      return updateRes.rows[0];
+    }
+    
+    throw new Error("Invalid status update");
 };
-
-const cancelBooking = async (bookingId: string, user_id: string) => {
-    // 1. Get Booking
-    const bookingQuery = await pool.query(`SELECT * FROM bookings WHERE id=$1`, [bookingId]);
-    if (bookingQuery.rows.length === 0) throw new Error("Booking not found");
-    const booking = bookingQuery.rows[0];
-
-    if (booking.customer_id !== parseInt(user_id)) throw new Error("Unauthorized to cancel this booking");
-    if (booking.status !== 'active') throw new Error("Booking cannot be cancelled");
-
-    const { vehicle_id } = booking;
-
-    // 2. Update Booking
-    const result = await pool.query(
-        `UPDATE bookings SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE id=$1 RETURNING *`,
-        [bookingId]
-    );
-
-    // 3. Status back to available
-    await pool.query(`UPDATE vehicles SET availability_status='available' WHERE id=$1`, [vehicle_id]);
-
-    return result.rows[0];
-}
 
 export const bookingServices = {
-    createBooking,
-    getAllBookings,
-    returnBooking,
-    cancelBooking
+  addBooking,
+  getBookings,
+  updateBooking
 };

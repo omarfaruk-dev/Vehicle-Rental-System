@@ -6,21 +6,27 @@ const auth = (...roles: string[]) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const token = req.headers.authorization;
-      if (!token) return res.status(500).json({ message: "You Are Not Allow" });
+      if (!token) {
+        return res.status(401).json({
+          success: false,
+          message: "You have no access to this route",
+        });
+      }
+      const splitToken = token.split(" ")[1];
+      const verifiedToken = splitToken || token;
 
-      const authToken = token.split(' ')[1];
-      if (!authToken) return res.status(500).json({ message: "You Are Not Allow" });
-
-      const decoded = jwt.verify(authToken, config.jwtSecret!) as JwtPayload;
+      const decoded = jwt.verify(verifiedToken, config.jwtSecret!) as JwtPayload;
       req.user = decoded;
+
       if (roles.length && !roles.includes(decoded.role!)) {
-        res.status(500).json({
-          err: "UnAuthorized Access",
+        return res.status(403).json({
+          success: false,
+          message: "You have no access to this route",
         });
       }
       next();
     } catch (err: any) {
-      res.status(500).json({
+      res.status(401).json({
         success: false,
         message: err.message,
       });
