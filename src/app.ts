@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import { userRoutes } from './modules/user/user.routes';
+import { authRoutes } from './modules/auth/auth.routes';
 
 const app = express();
 
@@ -7,6 +8,8 @@ const app = express();
 app.use(express.json());
 
 app.use('/api', userRoutes);
+
+app.use('/api', authRoutes);
 
 
 
