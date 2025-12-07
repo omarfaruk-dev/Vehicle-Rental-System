@@ -17,10 +17,14 @@ app.use(express.json());
 initDB();
 // root
 app.get("/", logger, (req: Request, res: Response) => {
-  res.send(200).json({
+  res.status(200).json({
     success: true,
     message: "Server is running...",
-  }, );
+    developer: {
+      name: "Omar Faruk",
+      email: "omarfaruk.dev@gmail.com",
+    },
+  });
 });
 
 // CRUD OPERATION API's
