@@ -7,7 +7,11 @@ const auth = (...roles: string[]) => {
     try {
       const token = req.headers.authorization;
       if (!token) return res.status(500).json({ message: "You Are Not Allow" });
-      const decoded = jwt.verify(token, config.jwtSecret!) as JwtPayload;
+
+      const authToken = token.split(' ')[1];
+      if (!authToken) return res.status(500).json({ message: "You Are Not Allow" });
+
+      const decoded = jwt.verify(authToken, config.jwtSecret!) as JwtPayload;
       req.user = decoded;
       if (roles.length && !roles.includes(decoded.role!)) {
         res.status(500).json({
