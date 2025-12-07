@@ -53,7 +53,7 @@ A robust backend system for managing vehicle rentals, allowing users to browse v
 
 1.  **Clone the repository:**
     ```bash
-    git clone <repository-url>
+    git clone https://github.com/omarfaruk-dev/Vehicle-Rental-System.git
     cd vehicle-rental-system
     ```
 
@@ -108,5 +108,5 @@ The API is accessible at `http://localhost:5000/api/v1`.
 ## Developer Info
 
 -   **Name**: Shihab Uddin
--   **Website**: [https://shihab-dev.web.app/](https://shihab-dev.web.app/)
--   **LinkedIn**: [https://shihab-dev.web.app/](https://shihab-dev.web.app/)
+-   **Website**: [https://omarfaruk.web.app/](https://omarfaruk.web.app/)
+-   **LinkedIn**: [https://www.linkedin.com/in/dev-omar-faruk/](https://www.linkedin.com/in/dev-omar-faruk/)
