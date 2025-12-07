@@ -1,0 +1,27 @@
+{
+  "name": "vehicle-rental-system",
+  "version": "1.0.0",
+  "description": "Vehicle Rental System Backend",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "npx tsx watch ./src/server.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omarfaruk-dev/Vehicle-Rental-System.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/omarfaruk-dev/Vehicle-Rental-System/issues"
+  },
+  "homepage": "https://github.com/omarfaruk-dev/Vehicle-Rental-System#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
